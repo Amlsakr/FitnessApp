@@ -43,7 +43,7 @@ story_location: D:\LinkDevProject\FitLife\_bmad-output\implementation-artifacts
 
 development_status:
   epic-0: backlog
-  setup-001-create-multi-module-gradle-project: backlog
+  setup-001-create-multi-module-gradle-project: done
   setup-002-core-domain-core-data-core-ui-boilerplate: backlog
   setup-003-firebase-crashlytics-integration: backlog
   setup-004-technical-spike-ml-kit-pose-detection-15-fps: backlog
