@@ -24,8 +24,11 @@ android {
 
 dependencies {
     implementation(project(":core:core-domain"))
+    implementation(platform(libs.firebase.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.coroutines.core)
     ksp(libs.hilt.android.compiler)
