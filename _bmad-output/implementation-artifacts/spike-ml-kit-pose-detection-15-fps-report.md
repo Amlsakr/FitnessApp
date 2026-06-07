@@ -70,6 +70,7 @@ POSE_BENCHMARK_RESULT outcome=Pass elapsedMs=310106 processed=9008 avgFps=29.05 
 | Average visible landmarks | 32.2 |
 | App crash | No |
 | Analyzer backlog observed | No |
+| Dropped/ignored frame behavior | CameraX was configured with `STRATEGY_KEEP_ONLY_LATEST`, so stale frames were dropped instead of queued when analysis could not keep up; no analyzer backlog was observed during the successful run. |
 | Unclosed frames observed | No |
 | Preview responsive | Yes |
 | Thermal throttling invalidation | No |
@@ -90,4 +91,3 @@ An instrumentation-only preview activity was then added so the device could be a
 - Physical-device instrumentation run on OPPO `CPH2737` passed.
 - Initial parallel `test`/`lint` validation failed due Gradle/Kotlin cache locking and resource merge file contention, not code errors.
 - `./gradlew.bat --stop; ./gradlew.bat test --no-daemon --console=plain; ./gradlew.bat lint --no-daemon --console=plain` passed sequentially.
-

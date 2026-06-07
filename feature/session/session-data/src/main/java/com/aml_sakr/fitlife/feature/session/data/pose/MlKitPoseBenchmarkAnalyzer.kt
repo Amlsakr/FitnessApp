@@ -8,7 +8,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetector
 import java.util.concurrent.atomic.AtomicBoolean
 
-class MlKitPoseBenchmarkAnalyzer(
+internal class MlKitPoseBenchmarkAnalyzer(
     private val poseDetector: PoseDetector,
     private val sampleSink: (PoseBenchmarkSample) -> Unit,
     private val timeSourceMillis: () -> Long = System::currentTimeMillis

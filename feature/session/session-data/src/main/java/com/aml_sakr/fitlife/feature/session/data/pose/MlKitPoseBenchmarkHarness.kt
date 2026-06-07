@@ -10,7 +10,7 @@ import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class MlKitPoseBenchmarkHarness(
+internal class MlKitPoseBenchmarkHarness(
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
 ) : AutoCloseable {
 

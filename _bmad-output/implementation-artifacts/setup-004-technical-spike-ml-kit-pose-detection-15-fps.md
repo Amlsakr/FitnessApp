@@ -1,6 +1,6 @@
 # Story SETUP-004: Technical Spike - ML Kit Pose Detection at 15 FPS
 
-Status: review
+Status: done
 
 Completion Note: Ultimate context engine analysis completed - comprehensive developer guide created.
 
@@ -47,6 +47,12 @@ so that the MVP can make an evidence-based decision to keep pose feedback in v1.
   - [x] Run focused compile/test tasks for touched modules.
   - [x] Run `./gradlew.bat test --no-daemon --console=plain`.
   - [x] Keep benchmark/prototype code isolated, clearly named as spike-only, and easy to remove or promote during `session-001`/`session-002`.
+
+### Review Findings
+
+- [x] [Review][Decision] Confirm whether OPPO Dimensity 8350 is an acceptable Snapdragon 6xx-class equivalent — accepted by user as representative. AC1 / pass-fail interpretation requires the benchmark to run on a real mid-range Android device comparable to Snapdragon 6xx, and the story guidance says stronger devices should be reported inconclusive unless representative. The report marks OPPO `CPH2737` / MediaTek Dimensity 8350 as representative and passes the spike, but the equivalence decision is not objectively established in the diff and public benchmark comparisons generally place Dimensity 8350 well above common Snapdragon 6xx references. Evidence: `_bmad-output/implementation-artifacts/spike-ml-kit-pose-detection-15-fps-report.md:21`.
+- [x] [Review][Patch] Report the required dropped/ignored frame behavior explicitly [_bmad-output/implementation-artifacts/spike-ml-kit-pose-detection-15-fps-report.md:72]
+- [x] [Review][Patch] Keep spike harness classes out of accidental production API surface [feature/session/session-data/src/main/java/com/aml_sakr/fitlife/feature/session/data/pose/MlKitPoseBenchmarkHarness.kt:13]
 
 ## Dev Notes
 
