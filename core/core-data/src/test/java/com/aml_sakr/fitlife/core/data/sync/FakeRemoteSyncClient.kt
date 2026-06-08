@@ -8,7 +8,7 @@ class FakeRemoteSyncClient : RemoteSyncClient {
     }
 
     override suspend fun saveRecord(record: SyncTestEntity): Boolean {
-        records[record.id] = record.copy(syncStatus = "SYNCED")
+        records[record.id] = record.copy(syncStatus = SyncStatus.SYNCED)
         return true
     }
 

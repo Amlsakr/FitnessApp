@@ -8,5 +8,5 @@ data class SyncTestEntity(
     @PrimaryKey val id: String,
     val payload: String,
     val lastModified: Long,
-    val syncStatus: String // "PENDING", "SYNCED"
+    val syncStatus: SyncStatus
 )

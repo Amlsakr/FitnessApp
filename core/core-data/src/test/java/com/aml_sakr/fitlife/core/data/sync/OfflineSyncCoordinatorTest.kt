@@ -26,7 +26,7 @@ class OfflineSyncCoordinatorTest {
     fun sync_whenOffline_returnsNoConnectivity() = runBlocking {
         // Given
         connectivityMonitor.setConnected(false)
-        dao.insert(SyncTestEntity("1", "Local Data", 1000L, "PENDING"))
+        dao.insert(SyncTestEntity("1", "Local Data", 1000L, SyncStatus.PENDING))
 
         // When
         val result = coordinator.sync()
@@ -34,14 +34,14 @@ class OfflineSyncCoordinatorTest {
         // Then
         assertFalse(result.success)
         assertEquals("No connectivity", result.error)
-        assertEquals("PENDING", dao.getById("1")?.syncStatus)
+        assertEquals(SyncStatus.PENDING, dao.getById("1")?.syncStatus)
         assertNull(remoteClient.getRecord("1"))
     }
 
     @Test
     fun sync_whenOnline_noRemoteRecord_uploadsLocal() = runBlocking {
         // Given
-        dao.insert(SyncTestEntity("1", "Local Data", 1000L, "PENDING"))
+        dao.insert(SyncTestEntity("1", "Local Data", 1000L, SyncStatus.PENDING))
 
         // When
         val result = coordinator.sync()
@@ -49,15 +49,15 @@ class OfflineSyncCoordinatorTest {
         // Then
         assertTrue(result.success)
         assertEquals(1, result.successCount)
-        assertEquals("SYNCED", dao.getById("1")?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, dao.getById("1")?.syncStatus)
         assertEquals("Local Data", remoteClient.getRecord("1")?.payload)
     }
 
     @Test
     fun sync_whenOnline_conflict_localNewer_overwritesRemote() = runBlocking {
         // Given
-        val local = SyncTestEntity("1", "Newer Local Data", 2000L, "PENDING")
-        val remote = SyncTestEntity("1", "Older Remote Data", 1000L, "SYNCED")
+        val local = SyncTestEntity("1", "Newer Local Data", 2000L, SyncStatus.PENDING)
+        val remote = SyncTestEntity("1", "Older Remote Data", 1000L, SyncStatus.SYNCED)
         dao.insert(local)
         remoteClient.simulateRemoteWrite(remote)
 
@@ -67,7 +67,7 @@ class OfflineSyncCoordinatorTest {
         // Then
         assertTrue(result.success)
         assertEquals(1, result.successCount)
-        assertEquals("SYNCED", dao.getById("1")?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, dao.getById("1")?.syncStatus)
         assertEquals("Newer Local Data", remoteClient.getRecord("1")?.payload)
         assertEquals(2000L, remoteClient.getRecord("1")?.lastModified)
     }
@@ -75,8 +75,8 @@ class OfflineSyncCoordinatorTest {
     @Test
     fun sync_whenOnline_conflict_remoteNewer_overwritesLocal() = runBlocking {
         // Given
-        val local = SyncTestEntity("1", "Older Local Data", 1000L, "PENDING")
-        val remote = SyncTestEntity("1", "Newer Remote Data", 2000L, "SYNCED")
+        val local = SyncTestEntity("1", "Older Local Data", 1000L, SyncStatus.PENDING)
+        val remote = SyncTestEntity("1", "Newer Remote Data", 2000L, SyncStatus.SYNCED)
         dao.insert(local)
         remoteClient.simulateRemoteWrite(remote)
 
@@ -93,14 +93,14 @@ class OfflineSyncCoordinatorTest {
         assertNotNull(localRecord)
         assertEquals("Newer Remote Data", localRecord?.payload)
         assertEquals(2000L, localRecord?.lastModified)
-        assertEquals("SYNCED", localRecord?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, localRecord?.syncStatus)
     }
 
     @Test
     fun sync_whenOnline_conflict_identicalTimestamps_localWins() = runBlocking {
         // Given
-        val local = SyncTestEntity("1", "Local Data", 1000L, "PENDING")
-        val remote = SyncTestEntity("1", "Remote Data Same Time", 1000L, "SYNCED")
+        val local = SyncTestEntity("1", "Local Data", 1000L, SyncStatus.PENDING)
+        val remote = SyncTestEntity("1", "Remote Data Same Time", 1000L, SyncStatus.SYNCED)
         dao.insert(local)
         remoteClient.simulateRemoteWrite(remote)
 
@@ -110,7 +110,7 @@ class OfflineSyncCoordinatorTest {
         // Then
         assertTrue(result.success)
         assertEquals(1, result.successCount)
-        assertEquals("SYNCED", dao.getById("1")?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, dao.getById("1")?.syncStatus)
         assertEquals("Local Data", remoteClient.getRecord("1")?.payload)
     }
 }

@@ -20,41 +20,58 @@ class OfflineSyncCoordinator(
 
         try {
             val unsynced = dao.getUnsyncedRecords()
-            for (local in unsynced) {
+            for (staleLocal in unsynced) {
+                val local = dao.getById(staleLocal.id) ?: continue
+                if (local.syncStatus == SyncStatus.SYNCED) {
+                    continue
+                }
+
                 val remote = remoteClient.getRecord(local.id)
                 if (remote == null) {
-                    // No remote record, just upload local
                     val uploaded = remoteClient.saveRecord(local)
                     if (uploaded) {
-                        dao.update(local.copy(syncStatus = "SYNCED"))
+                        dao.update(local.copy(syncStatus = SyncStatus.SYNCED))
                         successCount++
                     } else {
                         failureCount++
                     }
-                } else {
-                    // Conflict exists! Compare timestamps (latest-timestamp wins)
-                    if (local.lastModified >= remote.lastModified) {
-                        // Local is newer or equal, overwrite remote
+                    continue
+                }
+
+                when {
+                    local.lastModified > remote.lastModified -> {
                         val uploaded = remoteClient.saveRecord(local)
                         if (uploaded) {
-                            dao.update(local.copy(syncStatus = "SYNCED"))
+                            dao.update(local.copy(syncStatus = SyncStatus.SYNCED))
                             successCount++
                         } else {
                             failureCount++
                         }
-                    } else {
-                        // Remote is newer, overwrite local Room database
-                        dao.update(remote.copy(syncStatus = "SYNCED"))
+                    }
+                    local.lastModified < remote.lastModified -> {
+                        dao.update(remote.copy(syncStatus = SyncStatus.SYNCED))
                         conflictResolvedCount++
                         successCount++
                     }
+                    else -> {
+                        val uploaded = remoteClient.saveRecord(local)
+                        if (uploaded) {
+                            dao.update(local.copy(syncStatus = SyncStatus.SYNCED))
+                            conflictResolvedCount++
+                            successCount++
+                        } else {
+                            failureCount++
+                        }
+                    }
                 }
             }
+            val overallSuccess = failureCount == 0
             SyncResult(
-                success = true,
+                success = overallSuccess,
                 successCount = successCount,
                 failureCount = failureCount,
-                conflictResolvedCount = conflictResolvedCount
+                conflictResolvedCount = conflictResolvedCount,
+                error = if (overallSuccess) null else "Partial sync failure"
             )
         } catch (e: Exception) {
             SyncResult(success = false, error = e.message ?: "Unknown error")

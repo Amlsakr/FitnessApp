@@ -19,12 +19,12 @@ class FakeSyncTestDao : SyncTestDao {
     }
 
     override suspend fun getUnsyncedRecords(): List<SyncTestEntity> {
-        return records.values.filter { it.syncStatus == "PENDING" }
+        return records.values.filter { it.syncStatus == SyncStatus.PENDING }
     }
 
     override fun observeUnsyncedCount(): Flow<Int> {
         return flow {
-            emit(records.values.count { it.syncStatus == "PENDING" })
+            emit(records.values.count { it.syncStatus == SyncStatus.PENDING })
         }
     }
 

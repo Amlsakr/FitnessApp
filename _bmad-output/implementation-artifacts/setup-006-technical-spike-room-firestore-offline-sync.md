@@ -1,6 +1,6 @@
 # Story SETUP-006: Technical Spike - Room + Firestore Offline Sync
 
-Status: ready-for-dev
+Status: in-progress
 
 Completion Note: Ultimate context engine analysis completed - comprehensive developer guide created.
 
@@ -63,6 +63,27 @@ so that the MVP can reliably persist user data while offline and sync it automat
   - [ ] Ensure no production UI or navigation is added.
   - [ ] Run `./gradlew.bat test --no-daemon --console=plain` to verify build and test passes.
   - [ ] Ensure all automated tests run against in-memory Room and Firestore emulator, with no reliance on live cloud databases or real network.
+
+### Review Findings
+
+#### Current Code Review - 2026-06-08
+
+- [x] [Review][Patch] Replace fake-only benchmark with emulator-backed Room/Firestore validation [core/core-data/src/androidTest/java/com/aml_sakr/fitlife/core/data/sync/RoomFirestoreWorkManagerSyncInstrumentedTest.kt:1]
+- [x] [Review][Patch] Exercise WorkManager-backed sync path instead of invoking the coordinator directly [core/core-data/src/androidTest/java/com/aml_sakr/fitlife/core/data/sync/RoomFirestoreWorkManagerSyncInstrumentedTest.kt:114]
+- [x] [Review][Patch] Do not default production Firestore wiring to the local emulator [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/SyncModule.kt:31]
+- [x] [Review][Patch] Implement server timestamp-aware conflict handling [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/FirestoreRemoteSyncClient.kt:15]
+
+- [x] [Review][Patch] Fix core-data compile failure from wrong coroutine import [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/FirestoreRemoteSyncClient.kt:7]
+- [x] [Review][Patch] Replace fake-only benchmark with real Room and Firestore-emulator validation [core/core-data/src/androidTest/java/com/aml_sakr/fitlife/core/data/sync/RoomFirestoreWorkManagerSyncInstrumentedTest.kt:1]
+- [x] [Review][Patch] Exercise WorkManager-backed sync instead of calling the coordinator directly [core/core-data/src/androidTest/java/com/aml_sakr/fitlife/core/data/sync/RoomFirestoreWorkManagerSyncInstrumentedTest.kt:114]
+- [x] [Review][Patch] Implement server timestamp-aware conflict handling [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/FirestoreRemoteSyncClient.kt:15]
+- [x] [Review][Patch] Add emulator-first Firestore gating for tests [core/core-data/src/androidTest/java/com/aml_sakr/fitlife/core/data/sync/RoomFirestoreWorkManagerSyncInstrumentedTest.kt:43]
+- [x] [Review][Patch] Commit the required spike decision report instead of generating it as a test side effect [_bmad-output/implementation-artifacts/spike-room-firestore-offline-sync-report.md:1]
+- [x] [Review][Patch] Return failed sync status when any upload in the batch fails [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/OfflineSyncCoordinator.kt:50]
+- [x] [Review][Patch] Do not treat Firestore read exceptions as missing remote records [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/FirestoreRemoteSyncClient.kt:15]
+- [x] [Review][Patch] Guard against overwriting newer local edits with stale sync snapshots [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/OfflineSyncCoordinator.kt:22]
+- [x] [Review][Patch] Replace nullable global worker dependencies with a reliable worker dependency path [core/core-data/src/main/java/com/aml_sakr/fitlife/core/data/sync/SyncWorker.kt:14]
+- [x] [Review][Patch] Remove unrelated Gemini fallback file from the SETUP-006 branch [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiFallbackPlanProvider.kt:1]
 
 ## Dev Notes
 
