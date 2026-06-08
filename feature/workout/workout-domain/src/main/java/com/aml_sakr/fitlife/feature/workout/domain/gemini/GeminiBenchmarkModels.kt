@@ -66,6 +66,7 @@ data class GeminiBenchmarkSample(
     val schemaValid: Boolean,
     val mappedToWorkoutPlan: Boolean,
     val fallbackUsed: Boolean,
+    val fallbackPlanPath: String?,
     val errorCategory: String?
 )
 

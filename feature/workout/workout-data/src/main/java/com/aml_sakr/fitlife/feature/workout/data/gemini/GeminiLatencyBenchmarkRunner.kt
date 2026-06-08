@@ -8,6 +8,7 @@ import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiCallStatus
 import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiWorkoutProfile
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.cancellation.CancellationException
 import java.io.IOException
 import java.net.SocketTimeoutException
 
@@ -15,6 +16,7 @@ class GeminiLatencyBenchmarkRunner(
     private val apiService: GeminiApiService,
     private val promptBuilder: GeminiWorkoutPromptBuilder,
     private val responseParser: GeminiPlanResponseParser,
+    private val fallbackPlanProvider: GeminiFallbackPlanProvider = StaticGeminiFallbackPlanProvider,
     private val clock: BenchmarkClock = SystemBenchmarkClock
 ) {
     suspend fun run(
@@ -53,8 +55,28 @@ class GeminiLatencyBenchmarkRunner(
                 apiService.generatePlan(request, apiKey, configuration)
             }
             val responseReceivedMillis = clock.nowMillis()
+            if (callResult.httpStatusCode !in 200..299) {
+                return httpErrorSample(
+                    callIndex = callIndex,
+                    startMillis = startMillis,
+                    responseReceivedMillis = responseReceivedMillis,
+                    promptSizeChars = promptSizeChars,
+                    callResult = callResult,
+                    profile = profile
+                )
+            }
             val parsed = responseParser.parse(callResult.responseBody)
             val parsedMillis = clock.nowMillis()
+            if (parsedMillis - startMillis > configuration.timeoutMillis) {
+                return timeoutSample(
+                    callIndex = callIndex,
+                    startMillis = startMillis,
+                    promptSizeChars = promptSizeChars,
+                    timeoutMillis = configuration.timeoutMillis,
+                    profile = profile,
+                    endMillisOverride = parsedMillis
+                )
+            }
             val status = if (parsed.isValidPlan) GeminiCallStatus.Success else GeminiCallStatus.ParseError
             GeminiBenchmarkSample(
                 callIndex = callIndex,
@@ -71,26 +93,65 @@ class GeminiLatencyBenchmarkRunner(
                 schemaValid = parsed.isValidPlan,
                 mappedToWorkoutPlan = parsed.plan != null,
                 fallbackUsed = status != GeminiCallStatus.Success,
+                fallbackPlanPath = fallbackPathFor(status, profile),
                 errorCategory = if (status == GeminiCallStatus.Success) null else "parse_error"
             )
         } catch (_: TimeoutCancellationException) {
-            timeoutSample(callIndex, startMillis, promptSizeChars, configuration.timeoutMillis)
+            timeoutSample(callIndex, startMillis, promptSizeChars, configuration.timeoutMillis, profile)
         } catch (_: SocketTimeoutException) {
-            timeoutSample(callIndex, startMillis, promptSizeChars, configuration.timeoutMillis)
+            timeoutSample(callIndex, startMillis, promptSizeChars, configuration.timeoutMillis, profile)
         } catch (_: IOException) {
-            errorSample(callIndex, startMillis, promptSizeChars, GeminiCallStatus.NetworkError, "network_error")
+            errorSample(callIndex, startMillis, promptSizeChars, GeminiCallStatus.NetworkError, "network_error", profile)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
-            errorSample(callIndex, startMillis, promptSizeChars, GeminiCallStatus.HttpError, "http_or_unknown_error")
+            errorSample(callIndex, startMillis, promptSizeChars, GeminiCallStatus.HttpError, "http_or_unknown_error", profile)
         }
+    }
+
+    private fun httpErrorSample(
+        callIndex: Int,
+        startMillis: Long,
+        responseReceivedMillis: Long,
+        promptSizeChars: Int,
+        callResult: GeminiApiCallResult,
+        profile: GeminiWorkoutProfile
+    ): GeminiBenchmarkSample {
+        val status = if (callResult.httpStatusCode == 429) {
+            GeminiCallStatus.RateLimited
+        } else {
+            GeminiCallStatus.HttpError
+        }
+        val category = if (status == GeminiCallStatus.RateLimited) "rate_limited" else "http_error"
+        return GeminiBenchmarkSample(
+            callIndex = callIndex,
+            status = status,
+            firstAttemptLatencyMillis = responseReceivedMillis - startMillis,
+            totalLatencyMillis = responseReceivedMillis - startMillis,
+            requestLatencyMillis = responseReceivedMillis - startMillis,
+            parsingLatencyMillis = 0L,
+            httpStatusCode = callResult.httpStatusCode,
+            retryCount = 0,
+            responseSizeChars = callResult.responseSizeChars,
+            promptSizeChars = promptSizeChars,
+            outputTokenEstimate = null,
+            schemaValid = false,
+            mappedToWorkoutPlan = false,
+            fallbackUsed = true,
+            fallbackPlanPath = fallbackPlanProvider.fallbackPlanPath(profile),
+            errorCategory = category
+        )
     }
 
     private fun timeoutSample(
         callIndex: Int,
         startMillis: Long,
         promptSizeChars: Int,
-        timeoutMillis: Long
+        timeoutMillis: Long,
+        profile: GeminiWorkoutProfile,
+        endMillisOverride: Long? = null
     ): GeminiBenchmarkSample {
-        val endMillis = clock.nowMillis().coerceAtLeast(startMillis + timeoutMillis)
+        val endMillis = (endMillisOverride ?: clock.nowMillis()).coerceAtLeast(startMillis + timeoutMillis)
         return GeminiBenchmarkSample(
             callIndex = callIndex,
             status = GeminiCallStatus.Timeout,
@@ -106,6 +167,7 @@ class GeminiLatencyBenchmarkRunner(
             schemaValid = false,
             mappedToWorkoutPlan = false,
             fallbackUsed = true,
+            fallbackPlanPath = fallbackPlanProvider.fallbackPlanPath(profile),
             errorCategory = "timeout"
         )
     }
@@ -115,7 +177,8 @@ class GeminiLatencyBenchmarkRunner(
         startMillis: Long,
         promptSizeChars: Int,
         status: GeminiCallStatus,
-        category: String
+        category: String,
+        profile: GeminiWorkoutProfile
     ): GeminiBenchmarkSample {
         val endMillis = clock.nowMillis()
         return GeminiBenchmarkSample(
@@ -133,7 +196,11 @@ class GeminiLatencyBenchmarkRunner(
             schemaValid = false,
             mappedToWorkoutPlan = false,
             fallbackUsed = true,
+            fallbackPlanPath = fallbackPlanProvider.fallbackPlanPath(profile),
             errorCategory = category
         )
     }
+
+    private fun fallbackPathFor(status: GeminiCallStatus, profile: GeminiWorkoutProfile): String? =
+        if (status == GeminiCallStatus.Success) null else fallbackPlanProvider.fallbackPlanPath(profile)
 }

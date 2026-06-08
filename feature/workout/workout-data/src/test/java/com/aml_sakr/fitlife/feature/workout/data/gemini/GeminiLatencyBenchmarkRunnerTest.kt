@@ -49,7 +49,73 @@ class GeminiLatencyBenchmarkRunnerTest {
         assertFalse(run.samples[0].fallbackUsed)
         assertEquals(GeminiCallStatus.Timeout, run.samples[1].status)
         assertTrue(run.samples[1].fallbackUsed)
+        assertEquals("assets/fallback_workout_plans.json", run.samples[1].fallbackPlanPath)
         assertFalse(run.toString().contains("secret-key-that-must-not-be-recorded"))
+    }
+
+    @Test
+    fun `runner classifies non success http responses before parsing`() = runTest {
+        val service = FakeGeminiApiService(
+            results = listOf(
+                GeminiApiCallResult(
+                    httpStatusCode = 429,
+                    responseBody = """{"error":{"message":"quota exceeded"}}""",
+                    responseSizeChars = 38
+                ),
+                GeminiApiCallResult(
+                    httpStatusCode = 500,
+                    responseBody = """{"error":{"message":"server error"}}""",
+                    responseSizeChars = 37
+                )
+            )
+        )
+        val runner = GeminiLatencyBenchmarkRunner(
+            apiService = service,
+            promptBuilder = GeminiWorkoutPromptBuilder(),
+            responseParser = GeminiPlanResponseParser(),
+            clock = SequenceBenchmarkClock(0L, 100L, 200L, 350L)
+        )
+
+        val run = runner.run(
+            apiKey = "secret-key-that-must-not-be-recorded",
+            environment = environment(usedLiveGeminiApi = false, quotaVerified = false),
+            configuration = configuration(),
+            profiles = GeminiBenchmarkProfiles.representativeProfiles()
+        )
+
+        assertEquals(GeminiCallStatus.RateLimited, run.samples[0].status)
+        assertEquals("rate_limited", run.samples[0].errorCategory)
+        assertEquals(GeminiCallStatus.HttpError, run.samples[1].status)
+        assertEquals("http_error", run.samples[1].errorCategory)
+    }
+
+    @Test
+    fun `runner treats end to end parsing over timeout as timeout`() = runTest {
+        val service = FakeGeminiApiService(
+            results = listOf(
+                GeminiApiCallResult(
+                    httpStatusCode = 200,
+                    responseBody = generateContentResponse(validPlanJson()),
+                    responseSizeChars = 1200
+                )
+            )
+        )
+        val runner = GeminiLatencyBenchmarkRunner(
+            apiService = service,
+            promptBuilder = GeminiWorkoutPromptBuilder(),
+            responseParser = GeminiPlanResponseParser(),
+            clock = SequenceBenchmarkClock(0L, 4_990L, 5_010L)
+        )
+
+        val run = runner.run(
+            apiKey = "secret-key-that-must-not-be-recorded",
+            environment = environment(usedLiveGeminiApi = false, quotaVerified = false),
+            configuration = configuration(),
+            profiles = GeminiBenchmarkProfiles.representativeProfiles().take(1)
+        )
+
+        assertEquals(GeminiCallStatus.Timeout, run.samples.single().status)
+        assertTrue(run.samples.single().fallbackUsed)
     }
 
     @Test
@@ -72,10 +138,12 @@ class GeminiLatencyBenchmarkRunnerTest {
 
         val valid = parser.parse(generateContentResponse(validPlanJson()))
         val invalid = parser.parse(generateContentResponse("""{"days":[]}"""))
+        val duplicateDays = parser.parse(generateContentResponse(duplicateDayPlanJson()))
 
         assertTrue(valid.isValidPlan)
         assertEquals(7, valid.plan?.days?.size)
         assertFalse(invalid.isValidPlan)
+        assertFalse(duplicateDays.isValidPlan)
     }
 
     private fun environment(
@@ -130,6 +198,22 @@ class GeminiLatencyBenchmarkRunnerTest {
             {
               "day": $day,
               "title": "Day $day",
+              "durationMinutes": 35,
+              "exercises": [
+                {"name": "Squat", "sets": 3, "reps": "10", "estimatedDurationMinutes": 8}
+              ]
+            }
+            """.trimIndent()
+        }
+        return """{"days":[$days]}"""
+    }
+
+    private fun duplicateDayPlanJson(): String {
+        val days = (1..7).joinToString(separator = ",") {
+            """
+            {
+              "day": 1,
+              "title": "Duplicate",
               "durationMinutes": 35,
               "exercises": [
                 {"name": "Squat", "sets": 3, "reps": "10", "estimatedDurationMinutes": 8}

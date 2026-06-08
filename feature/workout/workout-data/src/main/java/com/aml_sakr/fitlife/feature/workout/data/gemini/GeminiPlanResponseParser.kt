@@ -54,6 +54,7 @@ class GeminiPlanResponseParser(
 
     private fun isValidPlan(plan: GeminiWorkoutPlanDraft?): Boolean {
         if (plan == null || plan.days.size != 7) return false
+        if (plan.days.map { it.day }.toSet() != (1..7).toSet()) return false
         return plan.days.all { day ->
             day.day in 1..7 &&
                 day.title.isNotBlank() &&

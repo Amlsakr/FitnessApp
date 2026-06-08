@@ -163,6 +163,7 @@ class GeminiBenchmarkMetricsTest {
         schemaValid = true,
         mappedToWorkoutPlan = true,
         fallbackUsed = false,
+        fallbackPlanPath = null,
         errorCategory = null
     )
 
@@ -181,6 +182,7 @@ class GeminiBenchmarkMetricsTest {
         schemaValid = false,
         mappedToWorkoutPlan = false,
         fallbackUsed = true,
+        fallbackPlanPath = "assets/fallback_workout_plans.json",
         errorCategory = "timeout"
     )
 }

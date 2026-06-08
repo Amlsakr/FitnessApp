@@ -5,5 +5,5 @@ interface BenchmarkClock {
 }
 
 object SystemBenchmarkClock : BenchmarkClock {
-    override fun nowMillis(): Long = System.currentTimeMillis()
+    override fun nowMillis(): Long = System.nanoTime() / 1_000_000L
 }

@@ -1,6 +1,6 @@
 # Story SETUP-005: Technical Spike - Gemini API 5-Second Latency
 
-Status: review
+Status: done
 
 Completion Note: Ultimate context engine analysis completed - comprehensive developer guide created.
 
@@ -48,6 +48,18 @@ so that the MVP can decide whether AI plan generation remains primary in v1.0 or
   - [x] Run `./gradlew.bat test --no-daemon --console=plain`.
   - [x] Ensure automated tests use fakes or MockWebServer and never require a real Gemini API key, live network, Firebase, or paid quota.
   - [x] Ensure no API keys, raw user health profiles, full prompts with sensitive data, or Gemini responses containing personal data are logged or committed.
+
+### Review Findings
+
+- [x] [Review][Patch] Classify non-2xx Gemini responses before parsing [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLatencyBenchmarkRunner.kt:56] - AC2 requires HTTP status or error category and rate-limit/HTTP-error metrics. `HttpGeminiApiService` returns non-2xx responses as normal call results, and the runner parses the error body as a workout plan, so 429/401/5xx responses can be reported as `ParseError` with `rateLimitCount` and `httpErrorCount` still zero.
+- [x] [Review][Patch] Apply the 5-second timeout to end-to-end request plus parsing [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLatencyBenchmarkRunner.kt:52] - AC5 requires calls exceeding 5 seconds to be treated as failures. The current `withTimeout` wraps only `apiService.generatePlan`; parsing happens after the timeout block, so a response that arrives just under 5 seconds can parse past 5 seconds and still be recorded as success.
+- [x] [Review][Patch] Exercise or explicitly record the local fallback plan path [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLatencyBenchmarkRunner.kt:93] - AC5 says timeout failures route to a local fallback plan path. The current timeout path only sets `fallbackUsed = true`; it does not load, identify, or validate a local fallback path, so the report overclaims fallback behavior.
+- [x] [Review][Patch] Include retry count and error category in the per-call report [feature/workout/workout-data/src/test/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLiveLatencyBenchmarkManualTest.kt:188] - AC2 requires retry usage and HTTP status or error category per call. Samples carry `retryCount` and `errorCategory`, but the report table omits both fields.
+- [x] [Review][Patch] Render the generated Markdown report without leading indentation [feature/workout/workout-data/src/test/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLiveLatencyBenchmarkManualTest.kt:122] - The generated report begins with leading spaces, causing Markdown headings and tables to render as code blocks rather than a readable decision report.
+- [x] [Review][Patch] Require unique day numbers 1 through 7 when validating Gemini plans [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiPlanResponseParser.kt:55] - The parser accepts seven days where every `day` value is `1`; it should require the set of day numbers to equal `1..7`.
+- [x] [Review][Patch] Rethrow coroutine cancellation instead of recording it as HTTP error [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLatencyBenchmarkRunner.kt:82] - The broad `Exception` catch can swallow cancellation paths and misreport them as `HttpError`; `CancellationException` should be rethrown before the broad catch.
+- [x] [Review][Patch] Avoid reporting zero successful latency as `0 ms` when there are no successful calls [feature/workout/workout-domain/src/main/java/com/aml_sakr/fitlife/feature/workout/domain/gemini/GeminiBenchmarkSummarizer.kt:18] - The current fail report shows average/p50/p95 successful latency as `0 ms` even though there were zero successful calls. Use `N/A` or nullable values in the report to avoid misleading evidence.
+- [x] [Review][Patch] Use monotonic time for benchmark latency measurements [feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/BenchmarkClock.kt:8] - `System.currentTimeMillis()` can move backward or forward during a run; elapsed benchmark measurements should use a monotonic source such as `System.nanoTime()`.
 
 ## Dev Notes
 
@@ -199,6 +211,8 @@ GPT-5 Codex
 - Added a manual live benchmark test runner that is skipped during normal tests unless `FITLIFE_RUN_GEMINI_LIVE_BENCHMARK=true` is set.
 - Ran the live Gemini benchmark with `GEMINI_API_KEY` from local configuration. All 10 calls exceeded the 5-second timeout, so the report recommends making static fallback templates primary and using Gemini only as an enhancement.
 - Full regression tests passed.
+- Resolved all 9 code-review patch findings: HTTP/rate-limit classification, end-to-end timeout treatment, fallback path evidence, report retry/error columns, Markdown report formatting, duplicate-day validation, cancellation handling, no-success latency display, and monotonic timing.
+- Re-ran the live Gemini benchmark after review fixes; SETUP-005 still fails the 5-second threshold with 10 timeout fallback events, now reported with clean Markdown tables and fallback path evidence.
 
 ### File List
 
@@ -209,6 +223,7 @@ GPT-5 Codex
 - `feature/workout/workout-data/build.gradle.kts`
 - `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/BenchmarkClock.kt`
 - `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiApiService.kt`
+- `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiFallbackPlanProvider.kt`
 - `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiGenerateContentModels.kt`
 - `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiLatencyBenchmarkRunner.kt`
 - `feature/workout/workout-data/src/main/java/com/aml_sakr/fitlife/feature/workout/data/gemini/GeminiPlanResponseParser.kt`
@@ -224,3 +239,4 @@ GPT-5 Codex
 ### Change Log
 
 - 2026-06-07: Implemented SETUP-005 Gemini latency spike harness, live manual benchmark runner, automated guardrail tests, and spike report. Live result failed the 5-second threshold with 10 timeout fallback events; story moved to review.
+- 2026-06-08: Applied all code review patches, regenerated the live spike report, reran focused and full tests, and moved story to done.

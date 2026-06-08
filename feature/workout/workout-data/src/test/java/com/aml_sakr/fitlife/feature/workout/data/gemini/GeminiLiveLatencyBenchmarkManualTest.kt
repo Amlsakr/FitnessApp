@@ -10,7 +10,6 @@ import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiBenchmarkProfile
 import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiBenchmarkRun
 import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiBenchmarkSummary
 import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiBenchmarkSummarizer
-import com.aml_sakr.fitlife.feature.workout.domain.gemini.GeminiCallStatus
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -119,83 +118,99 @@ private object GeminiLatencyReportWriter {
             GeminiBenchmarkOutcome.Fail -> "fail"
             GeminiBenchmarkOutcome.Inconclusive -> "inconclusive"
         }
+        val latencyMetrics = if (summary.successfulCallCount == 0) {
+            listOf(
+                "| Average successful latency | N/A |",
+                "| p50 successful latency | N/A |",
+                "| p95 successful latency | N/A |",
+                "| Min successful latency | N/A |",
+                "| Max successful latency | N/A |"
+            )
+        } else {
+            listOf(
+                "| Average successful latency | ${"%.0f".format(summary.averageSuccessfulLatencyMillis)} ms |",
+                "| p50 successful latency | ${summary.p50SuccessfulLatencyMillis} ms |",
+                "| p95 successful latency | ${summary.p95SuccessfulLatencyMillis} ms |",
+                "| Min successful latency | ${summary.minSuccessfulLatencyMillis} ms |",
+                "| Max successful latency | ${summary.maxSuccessfulLatencyMillis} ms |"
+            )
+        }.joinToString(separator = "\n")
+        val reasons = decision.reasons.joinToString(separator = "\n") { "- $it" }
+        val sampleRows = run.samples.joinToString(separator = "\n") { sample ->
+            "| ${sample.callIndex} | ${sample.status} | ${sample.totalLatencyMillis} ms | ${sample.requestLatencyMillis ?: 0} ms | ${sample.parsingLatencyMillis} ms | ${sample.httpStatusCode ?: ""} | ${sample.retryCount} | ${sample.errorCategory ?: ""} | ${sample.promptSizeChars} | ${sample.responseSizeChars} | ${sample.outputTokenEstimate ?: ""} | ${sample.schemaValid} | ${sample.mappedToWorkoutPlan} | ${sample.fallbackUsed} | ${sample.fallbackPlanPath ?: ""} |"
+        }
+
         return """
-            # Gemini API 5-Second Latency Spike Report
-
-            Status: $status
-
-            Date: ${run.environment.runTimestamp}
-
-            Story: SETUP-005 - Technical Spike: Gemini API 5-Second Latency
-
-            ## Decision
-
-            ${decision.recommendation}
-
-            Outcome: ${decision.outcome}
-
-            Acceptance criteria satisfied: ${decision.satisfiesAcceptanceCriteria}
-
-            Reasons:
-            ${decision.reasons.joinToString(separator = "\n") { "- $it" }}
-
-            ## Environment
-
-            | Field | Value |
-            | --- | --- |
-            | Execution target | ${run.environment.executionTarget} |
-            | Device / host | ${run.environment.deviceModel} |
-            | Android API level | ${run.environment.androidApiLevel ?: "not applicable"} |
-            | Network | ${run.environment.networkType} |
-            | Region | ${run.environment.approximateRegion} |
-            | Quota verified before run | ${run.environment.quotaVerified} |
-            | Live Gemini API used | ${run.environment.usedLiveGeminiApi} |
-
-            ## Configuration
-
-            | Field | Value |
-            | --- | --- |
-            | Model | ${run.configuration.modelName} |
-            | Endpoint | ${run.configuration.endpoint} |
-            | API version | ${run.configuration.apiVersion} |
-            | Response MIME type | ${run.configuration.responseMimeType} |
-            | Temperature | ${run.configuration.temperature} |
-            | Max output tokens | ${run.configuration.maxOutputTokens} |
-            | Timeout | ${run.configuration.timeoutMillis} ms |
-            | Max retries | ${run.configuration.maxRetries} |
-
-            ## Metrics
-
-            | Metric | Value |
-            | --- | --- |
-            | Total calls | ${summary.totalCallCount} |
-            | Successful calls | ${summary.successfulCallCount} |
-            | Success rate | ${"%.2f".format(summary.successRate * 100)}% |
-            | Average successful latency | ${"%.0f".format(summary.averageSuccessfulLatencyMillis)} ms |
-            | p50 successful latency | ${summary.p50SuccessfulLatencyMillis} ms |
-            | p95 successful latency | ${summary.p95SuccessfulLatencyMillis} ms |
-            | Min successful latency | ${summary.minSuccessfulLatencyMillis} ms |
-            | Max successful latency | ${summary.maxSuccessfulLatencyMillis} ms |
-            | Timeouts | ${summary.timeoutCount} |
-            | Rate limits | ${summary.rateLimitCount} |
-            | HTTP errors | ${summary.httpErrorCount} |
-            | Network errors | ${summary.networkErrorCount} |
-            | Parse errors | ${summary.parseErrorCount} |
-            | Fallback count | ${summary.fallbackCount} |
-
-            ## Per-Call Results
-
-            | Call | Status | Total latency | Request latency | Parsing latency | HTTP | Prompt chars | Response chars | Output tokens | Schema valid | Mapped | Fallback |
-            | --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- | --- | --- |
-            ${run.samples.joinToString(separator = "\n") { sample ->
-                "| ${sample.callIndex} | ${sample.status} | ${sample.totalLatencyMillis} ms | ${sample.requestLatencyMillis ?: 0} ms | ${sample.parsingLatencyMillis} ms | ${sample.httpStatusCode ?: ""} | ${sample.promptSizeChars} | ${sample.responseSizeChars} | ${sample.outputTokenEstimate ?: ""} | ${sample.schemaValid} | ${sample.mappedToWorkoutPlan} | ${sample.fallbackUsed} |"
-            }}
-
-            ## Follow-Up For Implementation Stories
-
-            - `wp-001-gemini-api-service-prompt-builder` can reuse the structured prompt/schema shape but should convert this spike code into production repository boundaries deliberately.
-            - `wp-002-generateworkoutplan-use-case-with-fallback-asset` should keep the 5-second timeout and local fallback behavior proven by tests here.
-            - If this run fails, static fallback templates should become the primary v1.0 plan source and Gemini should become an enhancement.
-        """.trimIndent()
+># Gemini API 5-Second Latency Spike Report
+>
+>Status: $status
+>
+>Date: ${run.environment.runTimestamp}
+>
+>Story: SETUP-005 - Technical Spike: Gemini API 5-Second Latency
+>
+>## Decision
+>
+>${decision.recommendation}
+>
+>Outcome: ${decision.outcome}
+>
+>Acceptance criteria satisfied: ${decision.satisfiesAcceptanceCriteria}
+>
+>Reasons:
+>$reasons
+>
+>## Environment
+>
+>| Field | Value |
+>| --- | --- |
+>| Execution target | ${run.environment.executionTarget} |
+>| Device / host | ${run.environment.deviceModel} |
+>| Android API level | ${run.environment.androidApiLevel ?: "not applicable"} |
+>| Network | ${run.environment.networkType} |
+>| Region | ${run.environment.approximateRegion} |
+>| Quota verified before run | ${run.environment.quotaVerified} |
+>| Live Gemini API used | ${run.environment.usedLiveGeminiApi} |
+>
+>## Configuration
+>
+>| Field | Value |
+>| --- | --- |
+>| Model | ${run.configuration.modelName} |
+>| Endpoint | ${run.configuration.endpoint} |
+>| API version | ${run.configuration.apiVersion} |
+>| Response MIME type | ${run.configuration.responseMimeType} |
+>| Temperature | ${run.configuration.temperature} |
+>| Max output tokens | ${run.configuration.maxOutputTokens} |
+>| Timeout | ${run.configuration.timeoutMillis} ms |
+>| Max retries | ${run.configuration.maxRetries} |
+>
+>## Metrics
+>
+>| Metric | Value |
+>| --- | --- |
+>| Total calls | ${summary.totalCallCount} |
+>| Successful calls | ${summary.successfulCallCount} |
+>| Success rate | ${"%.2f".format(summary.successRate * 100)}% |
+>$latencyMetrics
+>| Timeouts | ${summary.timeoutCount} |
+>| Rate limits | ${summary.rateLimitCount} |
+>| HTTP errors | ${summary.httpErrorCount} |
+>| Network errors | ${summary.networkErrorCount} |
+>| Parse errors | ${summary.parseErrorCount} |
+>| Fallback count | ${summary.fallbackCount} |
+>
+>## Per-Call Results
+>
+>| Call | Status | Total latency | Request latency | Parsing latency | HTTP | Retries | Error category | Prompt chars | Response chars | Output tokens | Schema valid | Mapped | Fallback | Fallback path |
+>| --- | --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+>$sampleRows
+>
+>## Follow-Up For Implementation Stories
+>
+>- `wp-001-gemini-api-service-prompt-builder` can reuse the structured prompt/schema shape but should convert this spike code into production repository boundaries deliberately.
+>- `wp-002-generateworkoutplan-use-case-with-fallback-asset` should keep the 5-second timeout and local fallback path behavior proven by tests here.
+>- If this run fails, static fallback templates should become the primary v1.0 plan source and Gemini should become an enhancement.
+        """.trimMargin(marginPrefix = ">")
     }
 }
