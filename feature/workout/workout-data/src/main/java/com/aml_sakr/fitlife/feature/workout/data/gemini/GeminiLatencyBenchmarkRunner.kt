@@ -204,3 +204,12 @@ class GeminiLatencyBenchmarkRunner(
     private fun fallbackPathFor(status: GeminiCallStatus, profile: GeminiWorkoutProfile): String? =
         if (status == GeminiCallStatus.Success) null else fallbackPlanProvider.fallbackPlanPath(profile)
 }
+
+interface GeminiFallbackPlanProvider {
+    fun fallbackPlanPath(profile: GeminiWorkoutProfile): String
+}
+
+object StaticGeminiFallbackPlanProvider : GeminiFallbackPlanProvider {
+    override fun fallbackPlanPath(profile: GeminiWorkoutProfile): String =
+        "assets/fallback_workout_plans.json"
+}
